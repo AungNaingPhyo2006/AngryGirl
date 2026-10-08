@@ -1,0 +1,660 @@
+================================================================================
+  Angry Girl - Game တည်ဆောက်ပုံ (Architecture Document)
+================================================================================
+
+ဒီ document က Angry Girl game ကို ဘယ်လို တည်ဆောက်ထားလဲ ရှင်းပြထားပါတယ်။
+Code ကို ပထမဆုံး ဖတ်မယ့်သူ (သို့) feature အသစ် ထည့်မယ့်သူအတွက် ရေးထားပါတယ်။
+
+မာတိကာ
+  1. အကျဉ်းချုပ်
+  2. နည်းပညာများ
+  3. Folder ဖွဲ့စည်းပုံ
+  4. App စတင်ပုံ (main.dart)
+  5. Widget Tree
+  6. Overlay (Screen) များနဲ့ သွားလာပုံ
+  7. Flame Game Tree (Component များ)
+  8. Game Loop နဲ့ အဓိက Function များ
+  9. Gameplay Logic
+ 10. Data နဲ့ သိမ်းဆည်းပုံ (Hive)
+ 11. Shop စနစ်
+ 12. HUD Guide နဲ့ Tutorial
+ 13. Audio
+ 14. Feature အသစ် ထည့်နည်း
+ 15. Constant (တန်ဖိုး) များ အကျဉ်း
+
+
+--------------------------------------------------------------------------------
+1. အကျဉ်းချုပ်
+--------------------------------------------------------------------------------
+
+Angry Girl က 2D endless runner game ပါ။ Player (code ထဲမှာ "Ninja") က
+ဘယ်ဘက်မှာ နေရာမပြောင်းဘဲ ပြေးနေပြီး နောက်ခံ (parallax) နဲ့ ရန်သူ၊ စိန်၊
+power-up တွေက ညာဘက်ကနေ ဘယ်ဘက်ကို ရွေ့လာပါတယ်။
+
+  - Screen ကို နှိပ်ရင် ခုန်တယ် (လေထဲမှာ တစ်ခါ ထပ်ခုန်လို့ရတယ်)
+  - ကန်လို့ရတဲ့ ရန်သူကို ဝင်တိုက်ရင် ကန်ပြီး ရမှတ်ရတယ်
+  - ကန်လို့မရတဲ့ ရန်သူကို ကျော်ခုန် (သို့) ဒုံးကျည်/bomb နဲ့ ပစ်ရတယ်
+  - စိန်တွေ စုပြီး Shop မှာ upgrade၊ skin စတာတွေ ဝယ်လို့ရတယ်
+
+Game ကို အပိုင်း ၂ ပိုင်း ခွဲထားပါတယ် —
+  (က) Flame အပိုင်း  : Game world ထဲက character၊ ရန်သူ၊ collision၊ animation
+  (ခ) Flutter အပိုင်း : Menu၊ HUD၊ Shop စတဲ့ UI တွေ (Flame "overlay" အဖြစ်)
+
+
+--------------------------------------------------------------------------------
+2. နည်းပညာများ
+--------------------------------------------------------------------------------
+
+  Flutter 3.41 / Dart 3.11   App နဲ့ UI အားလုံး
+  flame 1.38                 Game loop၊ sprite၊ animation၊ collision၊ parallax
+  flame_audio                Background music (BGM) နဲ့ sound effect (SFX)
+  hive                       Player data နဲ့ settings ကို ဖုန်းထဲ သိမ်းတယ်
+  provider                   PlayerData ပြောင်းရင် HUD/Menu ကို update လုပ်တယ်
+  path_provider              Hive သိမ်းမယ့် folder ကို ရှာတယ်
+  package_info_plus          About မှာ app version ပြတယ်
+  url_launcher               About မှာ email ကို နှိပ်ရင် email app ဖွင့်တယ်
+
+  Android build : Android Gradle plugin 8.9.1၊ NDK 28.2
+
+
+--------------------------------------------------------------------------------
+3. Folder ဖွဲ့စည်းပုံ
+--------------------------------------------------------------------------------
+
+lib/
+├── main.dart                 App စတင်တဲ့နေရာ၊ Hive setup၊ overlay register
+│
+├── game/                     Flame component များ (game world ထဲက အရာများ)
+│   ├── ninja_run.dart        NinjaRun - main game class (FlameGame)
+│   ├── ninja.dart            Ninja - player character
+│   ├── enemy.dart            Enemy - ရန်သူတစ်ကောင်
+│   ├── enemy_manager.dart    EnemyManager - ရန်သူ spawn လုပ်တယ်
+│   ├── collectibles.dart     Diamond, PowerUpItem, CollectibleManager
+│   ├── helper_dino.dart      HelperDino, HelperDinoSpawner - ကူညီတဲ့ dino
+│   ├── helper_bat.dart       HelperBat, HelperBatItem - ချီပေးတဲ့ လင်းနို့
+│   ├── rocket.dart           Rocket (player ပစ်တဲ့ ဒုံးကျည်), Explosion
+│   ├── bomb.dart             Bomb - burst ခလုတ်ကနေ ကျတဲ့ bomb
+│   ├── fireball.dart         Fireball - ဝက်က မှုတ်တဲ့ မီးလုံး
+│   ├── enemy_rocket.dart     EnemyRocket - ရန်သူ ပစ်တဲ့ ဒုံးကျည်
+│   ├── score_popup.dart      ScorePopup - "+5" လို ရမှတ် ပေါ်လာတာ
+│   ├── tutorial.dart         TutorialManager - tutorial အဆင့်တွေ
+│   └── audio_manager.dart    AudioManager - BGM/SFX (singleton)
+│
+├── models/                   Data class များ
+│   ├── player_data.dart      PlayerData - ရမှတ်၊ အသက်၊ စိန်၊ upgrade (Hive)
+│   ├── player_data.g.dart    PlayerData ရဲ့ Hive adapter
+│   ├── settings.dart         Settings - အသံ၊ ဘာသာစကား၊ ရန်သူနာမည် (Hive)
+│   ├── settings.g.dart       Settings ရဲ့ Hive adapter
+│   ├── shop.dart             Upgrade, Skin, Background, Consumable, Cosmetic
+│   ├── enemy_data.dart       EnemyData - ရန်သူတစ်မျိုးချင်းရဲ့ data
+│   ├── app_strings.dart      AppStrings - မြန်မာ/English စာသားအားလုံး
+│   └── tutorial_step.dart    TutorialStep enum
+│
+└── widgets/                  Flutter overlay များ (UI)
+    ├── main_menu.dart        MainMenu
+    ├── hud.dart              Hud - ကစားနေစဉ် ရမှတ်၊ နှလုံး၊ ခလုတ်များ
+    ├── hud_guide.dart        HudGuide - ပထမဆုံးအကြိမ် HUD ရှင်းပြချက်
+    ├── pause_menu.dart       PauseMenu
+    ├── game_over_menu.dart   GameOverMenu
+    ├── shop_menu.dart        ShopMenu
+    ├── settings_menu.dart    SettingsMenu
+    ├── enemy_names_menu.dart EnemyNamesMenu
+    ├── about_menu.dart       AboutMenu
+    └── menu_text.dart        MenuText - မြန်မာစာ အလယ်ကျအောင် ပြတဲ့ Text
+
+assets/images/   Sprite၊ နောက်ခံပုံ၊ power-up ပုံ
+assets/audio/    BGM နဲ့ SFX
+test/            Unit test
+
+
+--------------------------------------------------------------------------------
+4. App စတင်ပုံ (main.dart)
+--------------------------------------------------------------------------------
+
+  main()
+   │
+   ├─ WidgetsFlutterBinding.ensureInitialized()
+   │     Hive နဲ့ Flame က platform channel သုံးလို့ အရင်ခေါ်ရတယ်
+   │
+   ├─ initHive()
+   │     - Hive.init(documents folder)          (web မှာတော့ မလိုပါ)
+   │     - PlayerDataAdapter, SettingsAdapter ကို register လုပ်တယ်
+   │
+   └─ runApp(NinjaRunApp())
+         MaterialApp → Scaffold → GameWidget<NinjaRun>.controlled(...)
+
+  GameWidget ထဲမှာ —
+    - gameFactory      : NinjaRun ကို CameraComponent.withFixedResolution(360x180)
+                         နဲ့ ဆောက်တယ်။ Screen အရွယ် ဘယ်လိုပဲ ဖြစ်ဖြစ် game ထဲမှာ
+                         360x180 coordinate ပဲ သုံးတယ်။
+    - overlayBuilderMap: Overlay id → Widget ကို register လုပ်ထားတယ်
+    - initialActiveOverlays: [MainMenu.id] - ဖွင့်ဖွင့်ချင်း Main menu ပြတယ်
+    - loadingBuilder   : NinjaRun.onLoad() မပြီးခင် loading bar ပြတယ်
+
+  Overlay တိုင်းကို _withLanguage() နဲ့ ထုပ်ထားတယ် —
+    - game load မပြီးသေးရင် ဘာမှ မပြဘူး (settings မရှိသေးလို့)
+    - Settings ပြောင်းရင် overlay ကို rebuild လုပ်တယ် (ListenableBuilder)
+    - မြန်မာစာ ရွေးထားရင် စာလုံးကို 0.85 ဆ သေးအောင် လုပ်တယ်
+      (မြန်မာစာလုံးက English ထက် အမြင့် ပိုလိုလို့)
+
+
+--------------------------------------------------------------------------------
+5. Widget Tree
+--------------------------------------------------------------------------------
+
+5.1 App တစ်ခုလုံး
+
+  NinjaRunApp (StatelessWidget)
+  └── MaterialApp  (font: Audiowide + NotoSerifMyanmar fallback)
+      └── Scaffold
+          └── GameWidget<NinjaRun>
+              ├── [Flame game canvas]      ← NinjaRun ဆွဲတဲ့ game world
+              └── [Active overlays]        ← အောက်က widget တွေ (stack)
+                  ├── MainMenu
+                  ├── Hud
+                  ├── HudGuide             (Hud ရဲ့ အပေါ်မှာ)
+                  ├── PauseMenu
+                  ├── GameOverMenu
+                  ├── ShopMenu
+                  ├── SettingsMenu
+                  ├── EnemyNamesMenu
+                  └── AboutMenu
+
+  Overlay တွေကို active ဖြစ်တဲ့ အစီအစဉ်အတိုင်း အပေါ်ကို ထပ်ဆွဲတယ်။
+  ဥပမာ HudGuide ကို Hud ပြီးမှ add လုပ်တာကြောင့် Hud ရဲ့ အပေါ်မှာ ပေါ်တယ်။
+
+5.2 Hud (ကစားနေစဉ်)
+
+  Hud
+  └── ChangeNotifierProvider.value(PlayerData)
+      └── Stack (fit: expand)
+          ├── Padding → Row (အပေါ်တန်း)
+          │   ├── Column
+          │   │   ├── Column [scoreKey]
+          │   │   │   ├── Selector → Text  "ရမှတ်: 7"
+          │   │   │   └── Selector → Text  "အမြင့်ဆုံး: 7"
+          │   │   └── Selector [diamondsKey] → Row (💎 Icon + Text)
+          │   ├── TextButton [pauseKey] → Icon(pause)
+          │   └── Selector [livesKey] → Row → _Heart × maxLives
+          │
+          ├── Positioned (ဘယ်အောက်) → Selector [powerUpsKey]
+          │   └── Row → _PowerUpChip (ဒိုင်း / သံလိုက် / x2 / လင်းနို့)
+          │
+          ├── Positioned (ညာအောက်) → Selector [fireKey]
+          │   └── _ChargeButton (🚀 rockets / maxRockets)
+          │
+          ├── Positioned (fire ရဲ့ ဘယ်ဘက်) → Selector [burstKey]
+          │   └── _ChargeButton (🔥 bursts / maxBursts)
+          │
+          └── Positioned (အပေါ်အလယ်)   ← tutorial ကစားနေမှသာ
+              └── _TutorialBanner
+                  └── ValueListenableBuilder(tutorial.state)
+                      └── ညွှန်ကြားချက် + "တော်လိုက်တာ!" / ခလုတ်များ
+
+  - Selector က PlayerData ထဲက ကိုယ်လိုတဲ့ တန်ဖိုး ပြောင်းမှသာ rebuild
+    လုပ်လို့ frame တိုင်း rebuild မဖြစ်ပါဘူး။
+  - [xxxKey] တွေက static GlobalKey တွေပါ။ HudGuide က ဒီ key တွေနဲ့ widget
+    ရဲ့ နေရာကို တိုင်းပြီး highlight လုပ်တယ်။
+  - _ChargeButton: fire နဲ့ burst ခလုတ် နှစ်ခုလုံး သုံးတဲ့ widget။
+      count > 0 ဆိုမှ နှိပ်လို့ရတယ်။ ပတ်လည်က ring က နောက်တစ်ခါစာ ရဖို့
+      (score % scorePerCharge) / scorePerCharge ကို ပြတယ် (_ProgressRingPainter)။
+
+5.3 Menu overlay များ (ပုံစံတူ)
+
+  MainMenu / PauseMenu / GameOverMenu
+  └── Center
+      └── BackdropFilter (blur)
+          └── Card (မည်းမှိန်)
+              └── FittedBox (screen ငယ်ရင် ချုံ့တယ်)
+                  └── Column / Wrap
+                      ├── Text (ခေါင်းစဉ်)
+                      └── ElevatedButton × n → MenuText
+
+  ShopMenu
+  └── ChangeNotifierProvider → Consumer<PlayerData>
+      └── Card
+          └── Column
+              ├── _header (နောက်ပြန်ခလုတ် + "ဈေးဆိုင်" + 💎 အရေအတွက်)
+              └── ListView
+                  ├── Upgrades      → _UpgradeRow × n   (_ShopIcon + စာ + ဈေး)
+                  ├── One-game items→ _ConsumableRow × n
+                  ├── Skins         → Wrap → _SkinTile × n
+                  ├── Backgrounds   → Wrap → _BackgroundTile × n
+                  └── Cosmetics     → Wrap → _CosmeticTile × n
+
+  HudGuide (StatefulWidget)
+  └── GestureDetector (opaque - ဘယ်နေရာနှိပ်နှိပ် နောက်တစ်ဆင့်)
+      └── LayoutBuilder
+          └── Stack
+              ├── CustomPaint(_SpotlightPainter)  ← မှောင်ပြီး အပေါက်ဖောက်
+              └── Positioned → Card (ရှင်းပြချက်၊ 1/8၊ ကျော်မည်၊ နောက်တစ်ခု)
+
+
+--------------------------------------------------------------------------------
+6. Overlay (Screen) များနဲ့ သွားလာပုံ
+--------------------------------------------------------------------------------
+
+Screen ပြောင်းတာကို Navigator မသုံးဘဲ game.overlays.add() / remove() နဲ့
+လုပ်ပါတယ်။
+
+                         ┌──────────────┐
+          ┌──────────────│   MainMenu   │──────────────┐
+          │              └──────────────┘              │
+          │ ကစားမည်           │ လေ့ကျင့်ခန်း      │ ဈေးဆိုင် / ဆက်တင်
+          ▼                    ▼                      ▼
+   startGamePlay()      startTutorial()        ShopMenu / SettingsMenu
+          │                    │                      │
+          └─────────┬──────────┘              SettingsMenu ─┬─ EnemyNamesMenu
+                    ▼                                       └─ AboutMenu
+              ┌──────────┐  (ပထမဆုံးအကြိမ်)  ┌──────────┐
+              │   Hud    │ ───────────────► │ HudGuide │
+              └──────────┘                  └──────────┘
+               │      ▲
+     pause ခလုတ် │      │ ဆက်ကစားမည်
+               ▼      │
+           ┌────────────┐  ပြန်စမည် → restart()
+           │ PauseMenu  │  ထွက်မည်  → reset() → MainMenu
+           └────────────┘
+
+   Hud ── (lives <= 0) ──► GameOverMenu
+                             ├─ အသက်ပြန်ရှင် → revive() → Hud
+                             ├─ ပြန်စမည်    → reset() + startGamePlay()
+                             └─ ထွက်မည်    → reset() → MainMenu
+
+  App ကို background ပို့လိုက်ရင် (lifecycleStateChange) Hud ကို PauseMenu
+  နဲ့ အစားထိုးပြီး engine ကို pause လုပ်တယ်။
+
+
+--------------------------------------------------------------------------------
+7. Flame Game Tree (Component များ)
+--------------------------------------------------------------------------------
+
+  NinjaRun (FlameGame, TapCallbacks, HasCollisionDetection)
+  ├── camera (CameraComponent, fixed 360x180)
+  │   └── backdrop
+  │       └── ParallaxComponent         ← နောက်ခံ အလွှာများ (applyBackground)
+  │
+  └── world
+      ├── Ninja                         ← player
+      ├── EnemyManager                  ← ရန်သူ spawn (timer + milestone)
+      ├── CollectibleManager            ← စိန်၊ power-up၊ bat item spawn
+      ├── HelperDinoSpawner             ← dino spawn
+      ├── TutorialManager               ← tutorial ကစားမှသာ
+      │
+      │   (ကစားရင်း ထပ်ဝင်လာ/ထွက်သွားတဲ့ component များ)
+      ├── Enemy × n
+      ├── Diamond × n
+      ├── PowerUpItem / HelperBatItem
+      ├── HelperDino / HelperBat
+      ├── Rocket × n, Bomb × n, Explosion × n
+      ├── Fireball × n, EnemyRocket × n
+      └── ScorePopup × n
+
+  Manager တွေက ကိုယ်တိုင် မဆွဲပါဘူး။ update() ထဲမှာ timer/ရမှတ်ကို စစ်ပြီး
+  world ထဲကို component အသစ် add လုပ်ပေးရုံပါ။
+
+  Component တွေက HasGameReference<NinjaRun> mixin သုံးလို့ `game.` နဲ့
+  playerData၊ settings၊ ninja၊ virtualSize တွေကို ယူသုံးလို့ရတယ်။
+
+  Coordinate: (0,0) က ဘယ်ဘက်အပေါ်ထောင့်၊ virtualSize = (360, 180)။
+  မြေပြင်က y ≈ 164 (virtualSize.y - 16)။ Ninja က x = 32 မှာ ပြေးတယ်။
+
+
+--------------------------------------------------------------------------------
+8. Game Loop နဲ့ အဓိက Function များ
+--------------------------------------------------------------------------------
+
+8.1 Flame ရဲ့ lifecycle
+
+  onLoad()   Component ကို ပထမဆုံး load လုပ်ချိန် တစ်ခါပဲ (ပုံ load စသည်)
+  onMount()  World ထဲ ရောက်တိုင်း (restart မှာလည်း ပြန်ခေါ်တယ်)
+  update(dt) Frame တိုင်း။ dt = ပြီးခဲ့တဲ့ frame ကနေ ကြာတဲ့ စက္ကန့်
+  render()   Frame တိုင်း ဆွဲတယ်
+  onCollision / onCollisionStart  Hitbox ချင်း ထိရင်
+
+  ရွေ့လျားမှုတွေကို "speed * dt" နဲ့ တွက်လို့ ဖုန်းမြန်/နှေး မတူလည်း
+  အရှိန် တူပါတယ်။
+
+8.2 NinjaRun (lib/game/ninja_run.dart) - main game class
+
+  onLoad()
+    - Full screen + landscape ထားတယ်
+    - Hive ကနေ PlayerData နဲ့ Settings ကို ဖတ်တယ် (မရှိရင် အသစ်ဆောက်)
+    - AudioManager.init() + BGM စဖွင့်တယ်
+    - ပုံအားလုံးကို images.loadAll() နဲ့ cache လုပ်တယ်
+    - applyBackground() - shop မှာ ရွေးထားတဲ့ နောက်ခံကို ထည့်တယ်
+
+  startGamePlay()     ပုံမှန်ဂိမ်း စတယ်
+    - lives = maxLives, revives = 0
+    - startShield upgrade ရှိရင် ဒိုင်းနဲ့ စတယ်
+    - One-game item ဝယ်ထားရင် သုံးတယ် (ဒုံးကျည် ၃၊ x2၊ burst ၂)
+    - Ninja, EnemyManager, CollectibleManager, HelperDinoSpawner ကို add
+    - _showHudGuideIfNew()
+
+  startTutorial()     Tutorial စတယ်
+    - စိန်နဲ့ highScore ကို _beforeTutorial ထဲ မှတ်ထားတယ်
+    - Ninja, EnemyManager(autoSpawn: false), TutorialManager ကို add
+
+  restart()           Tutorial ဆို tutorial၊ မဟုတ်ရင် ပုံမှန်ဂိမ်း ပြန်စတယ်
+
+  reset()             World ကို ရှင်းပြီး ကစားစဉ် data တွေ 0 ပြန်ထားတယ်
+    - world.removeAll(world.children)
+    - score, rockets, bursts, shield, magnet, x2, carry = 0
+    - Tutorial ဖြစ်ခဲ့ရင် စိန်နဲ့ highScore ကို မူလအတိုင်း ပြန်ထားတယ်
+
+  revive()            စိန်ပေးပြီး အသက် ၁ ခုနဲ့ ဆက်ကစားတယ်
+    - ရန်သူ၊ မီးလုံး၊ ရန်သူဒုံးကျည်တွေကို ရှင်းတယ်
+    - ninja.recover() (ခဏ မထိခိုက်အောင်)
+
+  fireRocket()        rockets ရှိရင် ၁ ခု လျော့ပြီး Rocket ကို ninja ရှေ့က ပစ်တယ်
+
+  dropBombs()         bursts ရှိရင် ninja ရှေ့က screen ထဲရှိ အနီးဆုံး ရန်သူ
+                      ၂ ကောင်ပေါ် Bomb ချတယ်။ ရန်သူမရှိရင် burst မကုန်ဘူး။
+
+  update(dt)          lives <= 0 ဆိုရင် GameOverMenu ပြပြီး pause လုပ်တယ်
+
+  onTapDown()         Hud ပြနေရင် (= ကစားနေရင်) ninja.jump()
+
+  lifecycleStateChange()  App background/foreground ဖြစ်ရင် pause/resume
+
+8.3 Ninja (lib/game/ninja.dart)
+
+  Animation state များ (NinjaAnimationStates)
+    run     ပြေးနေတယ်
+    idle    ခုန်နေတယ် (jump() မှာ သုံးတယ်)
+    kick    ရန်သူကို ကန်နေတယ်
+    hit     ထိခိုက်ခံရတယ်
+    sprint  (မသုံးသေး)
+    carried လင်းနို့ ချီထားတယ် - Warrior_Jump_1~3.png
+
+  update(dt)
+    - Carried ဆိုရင် _updateCarried(): ရှေ့နဲ့ အပေါ်ကို ရွေ့၊ carryTime လျော့
+    - မဟုတ်ရင် gravity: speedY += 800*dt; y += speedY*dt
+      ရှေ့ရောက်နေရင် _homeX (32) ကို ဖြည်းဖြည်း ပြန်လာတယ်
+    - မြေပြင်ရောက်ရင် y = yMax, run animation
+    - timer တွေ (hit, attack, shield) နဲ့ magnet/x2 အချိန်ကို လျော့တယ်
+
+  jump()        မြေပြင်ကနေ (သို့) လေထဲမှာ တစ်ခါထပ် (max 2) speedY = -300
+  onCollision() Enemy နဲ့ထိရင် —
+                  attackable ဆိုရင် attack() → ကန်ပြီး ရမှတ်ယူ
+                  မဟုတ်ရင် ဒိုင်းရှိရင် _blockWithShield()၊ မရှိရင် hit()
+                  Carried ဖြစ်နေရင် ဘာမှ မလုပ်ဘူး
+  hit(damage)   lives -= damage, hit animation
+  hitByProjectile(damage)  မီးလုံး (0.5) / ရန်သူဒုံးကျည် (1)
+  recover()     revive ပြီး ခဏ မထိခိုက်အောင် _shieldTimer ကို စတယ်
+
+8.4 Enemy နဲ့ EnemyManager
+
+  EnemyData (models/enemy_data.dart) - ရန်သူတစ်မျိုးရဲ့ data
+    image, nFrames, textureSize, speedX, canFly,
+    attackable   (ကန်လို့ရလား), points, rocketPoints,
+    shootsFire   (မီးလုံးမှုတ်), throwsRocket (ဒုံးကျည်ပစ်),
+    deathFrames  (ကန်ခံရရင် ပြမယ့် animation)
+
+  Enemy.update()
+    - x -= speedX * dt
+    - shootsFire/throwsRocket ဆိုရင် screen ၃၀% ရောက်တာနဲ့ တစ်ခါ ပစ်တယ်
+    - screen ကျော်သွားရင် removeFromParent()
+  Enemy.transformEnemy()  ကန်ခံရရင် death animation ပြောင်းတယ်
+
+  EnemyManager
+    - Timer(2s) တိုင်း spawnRandomEnemy()
+        ရမှတ် 500 ကျော်ရင် Pixel Adventure ရန်သူတွေ + skeleton ပါ ပါလာတယ်
+    - Milestone ရန်သူများ (_MilestoneEnemy)
+        100 တိုင်း မီးမှုတ်တဲ့ ဝက်
+        200 တိုင်း ဒုံးကျည်ပစ်တဲ့ ကြက်   (1.5s နောက်ကျ)
+        300 တိုင်း ဒုံးကျည်ပစ်တဲ့ လင်းနို့ (3s နောက်ကျ)
+        တစ်ပြိုင်နက် ရောက်ရင် (ဥပမာ 600) မထပ်အောင် delay ထားတယ်
+    - autoSpawn: false ဆိုရင် (tutorial) ကိုယ်တိုင် spawn မလုပ်ဘဲ
+      spawnById('angry_pig') လို ခေါ်မှ spawn လုပ်တယ်
+
+8.5 Collectible များ (collectibles.dart၊ helper_bat.dart)
+
+  Collectible (abstract)
+    - မြေပြင်အရှိန်နဲ့ ဘယ်ဘက်ရွေ့တယ်
+    - magnet ရှိပြီး 100px အတွင်းဆိုရင် ninja ဆီ ဆွဲလာတယ်
+    - Ninja နဲ့ ထိရင် onCollected() ခေါ်ပြီး ပျောက်တယ်
+
+  Diamond         onCollected: diamonds +1, score +1
+  PowerUpItem     magnet → magnetTime၊ shield → shieldCharges
+  HelperBatItem   carryTime = carryDuration + HelperBat ခေါ်တယ်
+
+  CollectibleManager.update()
+    - Timer(2s) တိုင်း စိန်တစ်လုံး (မြေပြင် သို့ လေထဲ)
+    - 100 တိုင်း power-up (magnet/shield random)
+    - 400 တိုင်း HelperBatItem
+
+8.6 Helper များ
+
+  HelperDino   50 တိုင်း (dino မရှိမှ) ပေါ်လာပြီး ninja ရှေ့မှာ ပြေးတယ်။
+               ကန်လို့မရတဲ့ ရန်သူကို ဖြိုတယ်။ dinoLife ကောင် ဖြိုပြီးရင် သေတယ်။
+               လေထဲက ရန်သူ ရှေ့ရောက်ရင် ခုန်တယ်။
+
+  HelperBat    ninja ခေါင်းကို ခြေထောက်နဲ့ ကိုင်တဲ့နေရာ (grab) ကို လိုက်တယ်။
+               Ninja ကပဲ ကိုယ်တိုင် ရွေ့တာဖြစ်ပြီး bat က လိုက်ကပ်နေရုံပါ။
+               carryTime ကုန်ရင် ညာဘက်အပေါ်ကို ပျံထွက်ပြီး ပျောက်တယ်။
+
+8.7 ပစ်ခတ်မှုများ
+
+  Rocket       ညာဘက်ကို 250px/s ပျံတယ်။ rocketCanHit ရန်သူကို ထိရင်
+               Explosion + ScorePopup + ရမှတ်၊ ရန်သူနဲ့ ကိုယ်တိုင် ပျောက်တယ်။
+               (ကန်လို့ရတဲ့ ရန်သူကိုတော့ ဖြတ်သွားတယ် - rocketPoints မရှိရင်)
+  Bomb         Screen အပေါ်ကနေ target ရန်သူဆီ 260px/s လိုက်ကျတယ်။
+               ဘယ်ရန်သူမဆို ဖြိုတယ်။ Canvas နဲ့ ကိုယ်တိုင် ဆွဲထားတယ်။
+  Fireball     ဘယ်ဘက်ကို ပျံတယ်၊ ninja ထိရင် အသက် 0.5 လျော့
+  EnemyRocket  ပစ်တဲ့အချိန်က ninja ရှိတဲ့နေရာကို ပျံတယ်၊ ထိရင် အသက် 1 လျော့
+
+
+--------------------------------------------------------------------------------
+9. Gameplay Logic
+--------------------------------------------------------------------------------
+
+9.1 ရမှတ်နဲ့ ဆုလာဘ်များ (PlayerData.currentScore setter)
+
+  ရမှတ် ပြောင်းတိုင်း setter ထဲမှာ —
+    - x2 ဖြစ်နေရင် တိုးတဲ့ ရမှတ်ကို နှစ်ဆ လုပ်တယ်
+    - 20 ရဲ့ အဆ ကျော်သွားတိုင်း rockets +1 (maxRockets ထိ)
+    - 200 ရဲ့ အဆ ကျော်သွားတိုင်း bursts +1 (3 ထိ)
+    - highScore ထက်ကျော်ရင် highScore ကို update
+    - notifyListeners() + save()
+
+  ရမှတ် ရပုံ
+    - ရန်သူကန်ရင် enemyData.points (ပုံမှန် 5)
+    - ဒုံးကျည်/bomb နဲ့ ပစ်ရင် rocketPoints ?? points
+    - စိန်တစ်လုံး 1
+
+9.2 အသက် (lives)
+
+  - စစချင်း 5 (+ maxLives upgrade)၊ တစ်ဝက်ချင်း လျော့လို့ရတယ် (double)
+  - HUD မှာ _Heart(fill: 1 / 0.5 / 0) နဲ့ ပြတယ်
+  - 0 ရောက်ရင် NinjaRun.update() က GameOverMenu ပြတယ်
+  - Revive ဈေး = 20 × 2^revives (20, 40, 80 ...)
+
+9.3 ကာကွယ်မှုများ
+
+  - ဒိုင်း (shieldCharges): ထိခိုက်မှု တစ်ခါကို ကာပြီး 1s မထိခိုက်ဘူး
+  - Bat ချီထားချိန်: ဘာမှ မထိခိုက်ဘူး၊ ပြန်ကျပြီး 1s မထိခိုက်ဘူး
+  - Revive ပြီးချိန်: 1s မထိခိုက်ဘူး
+
+9.4 ခက်ခဲမှု မြင့်လာပုံ
+
+  ရမှတ်များလာရင် milestone ရန်သူ (မီးမှုတ်၊ ဒုံးကျည်ပစ်) တွေ ပေါ်လာပြီး
+  500 ကျော်ရင် ရန်သူအမျိုးအစား ပိုများလာတယ်။
+
+
+--------------------------------------------------------------------------------
+10. Data နဲ့ သိမ်းဆည်းပုံ (Hive)
+--------------------------------------------------------------------------------
+
+  Box                      Key                    Class
+  NinjaRun.PlayerDataBox   NinjaRun.PlayerData    PlayerData (typeId 0)
+  NinjaRun.SettingsBox     NinjaRun.Settings      Settings   (typeId 1)
+
+  PlayerData နဲ့ Settings က ChangeNotifier + HiveObjectMixin ပါ။
+  Setter တွေထဲမှာ notifyListeners() (UI update) နဲ့ save() (Hive သိမ်း)
+  နှစ်ခုလုံး ခေါ်တယ်။
+
+  သိမ်းတဲ့ field များ (@HiveField)
+    PlayerData: 1 highScore, 2 diamonds, 3 upgradeLevels, 4 ownedSkins,
+                5 selectedSkin, 6 ownedBackgrounds, 7 selectedBackground,
+                8 consumables, 9 ownedCosmetics, 10 selectedCosmetics
+    Settings:   0 bgm, 1 sfx, 2 enemyNames, 3 language,
+                4 hudGuideSeen, 5 tutorialDone
+
+  မသိမ်းတဲ့ (ကစားနေစဉ်ပဲ ရှိတဲ့) data
+    currentScore, lives, rockets, bursts, shieldCharges, magnetTime,
+    doubleScoreTime, carryTime, revives
+
+  သတိ: .g.dart file တွေကို လက်နဲ့ ပြင်ထားပါတယ်။ Field အသစ်ထည့်ရင် —
+    - HiveField နံပါတ် အသစ် (ရှိပြီးသား နံပါတ်ကို မပြောင်းရ)
+    - read() မှာ `fields[n] as Type?` (nullable - data ဟောင်းမှာ မပါလို့)
+    - write() မှာ writeByte(field အရေအတွက်) ကို တိုးပြီး field ကို ရေး
+
+
+--------------------------------------------------------------------------------
+11. Shop စနစ် (models/shop.dart, widgets/shop_menu.dart)
+--------------------------------------------------------------------------------
+
+  Upgrade (level တက်တဲ့ အမြဲတမ်း upgrade)
+    UpgradeType           ဈေး (level အလိုက်)          အကျိုး
+    rocketCapacity        20,40,60,80,100            maxRockets +1
+    magnetDuration        15,30,45,60,75             magnet +2s
+    shieldStrength        50,100                     ဒိုင်း ထိမှု +1
+    dinoLife              25,50,75,100               dino ဖြိုနိုင် +1
+    maxLives              100,200,300                အသက် +1
+    startShield           120                        ဒိုင်းနဲ့ စမယ်
+    batCarry              30,60,90,120               bat ချီချိန် +1s
+
+    PlayerData.buyUpgrade(type): စိန်လောက်ပြီး max မရောက်သေးရင် ဝယ်တယ်
+
+  Consumable (ဂိမ်းတစ်ပွဲ စရင် တစ်ခု ကုန်တဲ့ item)
+    startRockets   30   ဒုံးကျည် ၃ စင်းနဲ့ စမယ်
+    doubleScore    40   ရမှတ် ၂ ဆ (၃၀ စက္ကန့်)
+    startBursts    50   Bomb ၂ ခါစာနဲ့ စမယ်
+
+  Skin        Ninja ကို ColorFilter (tint/matrix) နဲ့ အရောင်ပြောင်းတယ်
+  Background  Parallax အလွှာ list
+  Cosmetic    music, shieldColor, rocketStyle, dinoColor အုပ်စုများ
+
+  Shop UI က Upgrade.all, ConsumableItem.all စတဲ့ list တွေကို loop ပတ်ပြီး
+  အလိုအလျောက် ပြတယ်။ Icon တွေကို _upgradeIcon() / _consumableIcon() မှာ
+  switch နဲ့ ရွေးတယ် (type အသစ်ထည့်ရင် icon မထည့်မချင်း build မရပါ)။
+
+
+--------------------------------------------------------------------------------
+12. HUD Guide နဲ့ Tutorial
+--------------------------------------------------------------------------------
+
+12.1 HudGuide (widgets/hud_guide.dart)
+
+  ပြတဲ့အချိန်: settings.hudGuideSeen == false နဲ့ highScore == 0 (player အသစ်)
+  startGamePlay()/startTutorial() က _showHudGuideIfNew() ကို ခေါ်တယ်။
+  Hud ကို add ပြီးမှ ခေါ်ရတယ် (Hud ရဲ့ အပေါ်မှာ ပေါ်ဖို့)။
+
+  လုပ်ပုံ
+    1. Engine ကို pause လုပ်ထားတယ်
+    2. အဆင့်တစ်ခုစီမှာ Hud.xxxKey နဲ့ widget ရဲ့ RenderBox ကို ရှာပြီး
+       နေရာ (Rect) ကို တိုင်းတယ် (post frame callback)
+    3. _SpotlightPainter က screen ကို မှောင်ပြီး အဲဒီ Rect ကို
+       အပေါက်ဖောက် + အဝါဘောင် ဆွဲတယ်
+    4. ရှင်းပြချက် card ကို target အပေါ်ပိုင်းဆို အောက်မှာ၊
+       အောက်ပိုင်းဆို အပေါ်မှာ ထားတယ်
+    5. ပြီးရင် hudGuideSeen = true, resumeEngine()
+
+12.2 Tutorial (game/tutorial.dart)
+
+  TutorialStep: jump → doubleJump → dodge → kick → diamonds →
+                rocket → shield → done
+
+  TutorialManager.update()
+    - lives လျော့ရင် ချက်ချင်း ပြန်ဖြည့်တယ် (ဘယ်တော့မှ မရှုံးဘူး)
+    - လက်ရှိ step ပြီးမပြီး စစ်တယ်
+        jump       ninja မြေပြင်ပေါ်က လွတ်သွားရင်
+        doubleJump jumpCount == 2
+        dodge      ဝက် screen ကျော်သွားပြီး ထိမခံရရင်
+        kick       gino ကို ကန်လိုက်ရင် (isTransformed)
+        diamonds   စိန် ၃ လုံး ကောက်မိရင်
+        rocket     ဝက်ကို screen ထဲမှာ ဖြိုလိုက်ရင်
+        shield     ဒိုင်းရရင်
+    - ပြီးရင် _complete(): "တော်လိုက်တာ!" ပြပြီး 1.5s နောက် နောက်တစ်ဆင့်
+    - လွဲရင် _retry(): "ထပ်ကြိုးစားပါ" ပြပြီး ပြန် spawn လုပ်တယ်
+
+  state (ValueNotifier) ကို Hud ထဲက _TutorialBanner က နားထောင်ပြီး ပြတယ်။
+  Tutorial ထွက်ရင် reset() က စိန်နဲ့ highScore ကို မူလအတိုင်း ပြန်ထားတယ်။
+
+
+--------------------------------------------------------------------------------
+13. Audio (game/audio_manager.dart)
+--------------------------------------------------------------------------------
+
+  AudioManager.instance (singleton)
+    init()      audio file တွေ cache လုပ်၊ SFX အတွက် AudioPool ဆောက်
+    startBgm()  shop မှာ ရွေးထားတဲ့ music ကို ဖွင့် (settings.bgm ဆိုမှ)
+    pauseBgm() / resumeBgm() / stopBgm()
+    playSfx()   settings.sfx ဆိုမှ ဖွင့်
+
+  SFX: jump14.wav (ခုန်/ကန်), hurt7.wav (ထိခိုက်), fire.wav (ပစ်),
+       jump3.wav (power-up ကောက်)
+
+
+--------------------------------------------------------------------------------
+14. Feature အသစ် ထည့်နည်း
+--------------------------------------------------------------------------------
+
+  ရန်သူအမျိုးအစား အသစ်
+    1. assets/images/ ထဲ sprite ထည့်ပြီး pubspec.yaml assets မှာ folder ပါလား စစ်
+    2. NinjaRun._imageAssets ထဲ path ထည့် (preload)
+    3. EnemyManager.onMount() ထဲ EnemyData ထည့်
+    4. Settings.defaultEnemyNames နဲ့ AppStrings.enemyLabel() ထဲ id ထည့်
+
+  Power-up / item အသစ်
+    1. Collectible ကို extend လုပ်ပြီး onCollected() ရေး
+    2. CollectibleManager.update() ထဲမှာ spawn လုပ်မယ့် ရမှတ် စစ်
+    3. ကြာချိန်ရှိရင် PlayerData မှာ xxxTime field ထည့်ပြီး
+       NinjaRun.reset() မှာ 0 ပြန်ထား၊ Hud ရဲ့ power-up chip မှာ ပြ
+
+  Shop item အသစ်
+    1. shop.dart မှာ UpgradeType / Consumable enum နဲ့ all list ထဲ ထည့်
+    2. app_strings.dart မှာ နာမည် (မြန်မာ + English) ထည့်
+    3. shop_menu.dart မှာ icon နဲ့ _value() ထည့်
+    4. အကျိုးသက်ရောက်မှုကို PlayerData / startGamePlay() မှာ ရေး
+
+  Screen (overlay) အသစ်
+    1. widgets/ ထဲ static const id ပါတဲ့ widget ရေး
+    2. main.dart ရဲ့ overlayBuilderMap ထဲ register လုပ်
+    3. game.overlays.add(Xxx.id) / remove() နဲ့ ဖွင့်/ပိတ်
+
+  စာသား အသစ်
+    AppStrings (abstract) မှာ ထည့်ပြီး _Myanmar နဲ့ _English နှစ်ခုလုံးမှာ
+    override လုပ်ရတယ်။ Code ထဲမှာ game.settings.strings.xxx နဲ့ သုံးတယ်။
+
+  စစ်ဆေးရန်
+    flutter analyze
+    flutter test
+
+
+--------------------------------------------------------------------------------
+15. Constant (တန်ဖိုး) များ အကျဉ်း
+--------------------------------------------------------------------------------
+
+  တန်ဖိုး                         ပမာဏ    File
+  Rocket တစ်စင်းရဖို့ ရမှတ်          20     PlayerData.scorePerRocket
+  Rocket အများဆုံး (base)           5      PlayerData.baseMaxRockets
+  Dino ပေါ်ဖို့ ရမှတ်                50     HelperDinoSpawner.scorePerDino
+  Power-up ပေါ်ဖို့ ရမှတ်            100    PlayerData.scorePerPowerUp
+  Burst တစ်ခါရဖို့ ရမှတ်             200    PlayerData.scorePerBurst
+  Burst အများဆုံး                   3      PlayerData.maxBursts
+  Bomb ကျမယ့် ရန်သူ အရေအတွက်         2      Bomb.maxTargets
+  Helper bat item ပေါ်ဖို့ ရမှတ်       400    PlayerData.scorePerHelperBat
+  Bat ချီချိန် (base)                5s     PlayerData.baseCarryDuration
+  Magnet ကြာချိန် (base)             8s     PlayerData.baseMagnetDuration
+  Dino ဖြိုနိုင်တဲ့ ရန်သူ (base)        2      PlayerData.baseDinoLife
+  အသက် (base)                      5      PlayerData.baseMaxLives
+  Revive ဈေး (ပထမ)                 20     PlayerData.baseReviveCost
+  ရန်သူ spawn ကြားချိန်              2s     EnemyManager._timer
+  ရန်သူ အမျိုးအစား ပိုများလာမယ့်ရမှတ်  500    EnemyManager.scoreForExtraEnemies
+  မီးမှုတ်ဝက် / ဒုံးကြက် / ဒုံးလင်းနို့  100/200/300  EnemyManager.scorePer...
+  Gravity                          800    Ninja.gravity
+  Game resolution                  360x180  main.dart
+
+================================================================================
